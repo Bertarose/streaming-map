@@ -3,18 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radio Globe - Cyber Map</title>
+    <title>Radio Globe - Tactical Map</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    
     <style>
+        :root {
+            --bg-color: #000000;
+            --ui-color: #ffffff;
+            --dim-color: rgba(255, 255, 255, 0.4);
+            --scanline-color: rgba(255, 255, 255, 0.05);
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            user-select: none;
         }
 
         body {
-            font-family: 'Courier New', monospace;
-            background: #000;
-            color: #0f0;
+            font-family: 'Space Mono', monospace; /* Police responsive et lisible */
+            background: var(--bg-color);
+            color: var(--ui-color);
             overflow: hidden;
             cursor: crosshair;
         }
@@ -23,111 +35,129 @@
             width: 100vw;
             height: 100vh;
             position: relative;
+            z-index: 1;
         }
 
+        /* --- UI ELEMENTS (Noir et Blanc) --- */
+        
         #info-panel {
             position: absolute;
             top: 20px;
             left: 20px;
-            background: transparent;
-            border: none;
-            padding: 20px;
-            max-width: 400px;
             z-index: 100;
+            pointer-events: none; /* Permet de cliquer à travers */
         }
 
         #info-panel h1 {
-            font-size: 24px;
-            margin-bottom: 10px;
+            /* Responsive font size using clamp */
+            font-size: clamp(24px, 5vw, 42px);
             text-transform: uppercase;
-            letter-spacing: 3px;
-            color: #fff;
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+            font-weight: 700;
+            text-shadow: 2px 2px 0px #333;
         }
 
         #info-panel p {
-            font-size: 12px;
-            line-height: 1.6;
-            color: #fff;
-            margin-bottom: 15px;
+            font-size: clamp(10px, 2vw, 14px);
+            color: var(--dim-color);
         }
 
+        /* --- CONTROLS --- */
+        #controls {
+            position: absolute;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .cyber-btn {
+            background: #000;
+            border: 1px solid var(--ui-color);
+            color: var(--ui-color);
+            padding: 15px 20px;
+            font-family: 'Space Mono', monospace;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            position: relative;
+            box-shadow: 4px 4px 0 rgba(255,255,255,0.2);
+        }
+
+        .cyber-btn:hover {
+            background: var(--ui-color);
+            color: var(--bg-color);
+            box-shadow: 2px 2px 0 rgba(255,255,255,0.8);
+            transform: translate(2px, 2px);
+        }
+
+        .cyber-btn.active {
+            background: var(--ui-color);
+            color: var(--bg-color);
+        }
+
+        /* --- HOVER GIF TOOLTIP --- */
+        #holo-tooltip {
+            position: absolute;
+            display: none;
+            z-index: 200;
+            pointer-events: none;
+            border: 1px solid var(--ui-color);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 5px;
+            width: 200px;
+            /* Le gif sera en noir et blanc via filtre CSS si besoin, 
+               mais ici on garde l'original si l'image est déjà B&W */
+        }
+        
+        #holo-tooltip img {
+            width: 100%;
+            display: block;
+            filter: grayscale(100%) contrast(120%); /* Force le B&W sur l'image */
+        }
+
+        #holo-tooltip .meta {
+            padding: 5px;
+            font-size: 10px;
+            border-top: 1px solid #333;
+            margin-top: 2px;
+            text-align: center;
+        }
+
+        /* --- STATION INFO PANEL --- */
         #station-info {
             position: absolute;
-            bottom: 20px;
+            bottom: 40px;
             left: 20px;
-            background: transparent;
-            border: none;
-            padding: 15px;
+            background: #000;
+            border: 1px solid var(--ui-color);
+            padding: 20px;
             max-width: 400px;
             display: none;
             z-index: 100;
+            box-shadow: 10px 10px 0 rgba(255,255,255,0.1);
         }
 
         #station-info h2 {
-            color: #fff;
-            font-size: 18px;
-            margin-bottom: 8px;
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            font-size: 24px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--ui-color);
+            padding-bottom: 10px;
         }
 
-        #station-info p {
-            color: #fff;
-            font-size: 12px;
-            margin: 5px 0;
+        #station-info .actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
         }
 
-        #station-info button {
-            background: transparent;
-            border: 1px solid #fff;
-            color: #fff;
-            padding: 8px 16px;
-            margin-top: 10px;
-            margin-right: 10px;
-            cursor: pointer;
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            text-transform: uppercase;
-            transition: all 0.3s;
-        }
-
-        #station-info button:hover {
-            background: #fff;
-            color: #000;
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
-        }
-
-        #controls {
-            position: absolute;
-            top: 240px;
-            left: 20px;
-            background: transparent;
-            border: none;
-            padding: 15px;
-            z-index: 100;
-            max-width: 400px;
-        }
-
-        #controls button {
-            display: block;
-            width: 100%;
-            background: transparent;
-            border: 1px solid #fff;
-            color: #fff;
-            padding: 8px;
-            margin: 5px 0;
-            cursor: pointer;
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            transition: all 0.3s;
-        }
-
-        #controls button:hover {
-            background: #fff;
-            color: #000;
-            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-        }
-
+        /* --- EFFECTS --- */
         .scanline {
             position: absolute;
             top: 0;
@@ -135,28 +165,15 @@
             width: 100%;
             height: 100%;
             background: linear-gradient(
-                transparent 50%, 
-                rgba(0, 255, 0, 0.05) 50%
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.2) 50%,
+                rgba(0,0,0,0.2)
             );
             background-size: 100% 4px;
             pointer-events: none;
-            z-index: 1000;
-            animation: scanline 8s linear infinite;
-        }
-
-        @keyframes scanline {
-            0% { transform: translateY(0); }
-            100% { transform: translateY(100%); }
-        }
-
-        .glitch {
-            animation: glitch 3s infinite;
-        }
-
-        @keyframes glitch {
-            0%, 90%, 100% { text-shadow: 0 0 10px currentColor; }
-            92% { text-shadow: 2px 0 10px currentColor, -2px 0 10px currentColor; }
-            94% { text-shadow: -2px 0 10px currentColor, 2px 0 10px currentColor; }
+            z-index: 900;
         }
 
         #loading {
@@ -164,103 +181,68 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 18px;
-            color: #0ff;
-            text-shadow: 0 0 20px #0ff;
-            z-index: 200;
+            font-size: 14px;
+            letter-spacing: 4px;
+            animation: blink 1s infinite;
         }
 
-        /* Mobile responsive styles */
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Mobile Adjustments */
         @media (max-width: 768px) {
-            #info-panel {
-                max-width: 90%;
-                padding: 15px;
-                font-size: 11px;
-            }
-
-            #info-panel h1 {
-                font-size: 18px;
-                letter-spacing: 2px;
-            }
-
-            #info-panel p {
-                font-size: 10px;
-            }
-
             #controls {
                 top: auto;
                 bottom: 20px;
                 right: 20px;
-                left: auto;
-                max-width: 200px;
-                padding: 10px;
+                transform: none;
             }
-
-            #controls button {
-                font-size: 9px;
-                padding: 6px;
+            .cyber-btn {
+                padding: 10px 15px;
+                font-size: 10px;
             }
-
             #station-info {
-                max-width: 90%;
-                left: 50%;
-                transform: translateX(-50%);
-            }
-
-            #station-info h2 {
-                font-size: 14px;
-            }
-
-            #station-info p {
-                font-size: 10px;
-            }
-
-            #station-info button {
-                font-size: 10px;
-                padding: 6px 12px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            #info-panel h1 {
-                font-size: 16px;
-            }
-
-            #controls {
-                bottom: 10px;
-                right: 10px;
-                padding: 8px;
+                width: 90%;
+                left: 5%;
+                bottom: 100px;
             }
         }
     </style>
 </head>
 <body>
-    <div id="loading" class="glitch">INITIALIZING SATELLITE UPLINK...</div>
+    <div id="loading">INITIALISATION DU SYSTÈME...</div>
     <div class="scanline"></div>
     
-    <div id="container"></div>
-
     <div id="info-panel">
-        <h1 class="glitch">RADIO GLOBE</h1>
-        <p>> UNDERGROUND TRANSMISSION MAP</p>
-        <p>> DRAG TO ROTATE</p>
-        <p>> SCROLL TO ZOOM</p>
-        <p>> CLICK MARKERS TO TUNE IN</p>
-        <p style="color: #fff; margin-top: 15px; font-weight: bold;">[STATIONS ONLINE: <span id="station-count">0</span>]</p>
+        <h1>RADIO GLOBE</h1>
+        <p>> RÉSEAU SOUTERRAIN MONDIAL</p>
+        <p style="margin-top: 10px;">[CIBLES DÉTECTÉES: <span id="station-count">0</span>]</p>
     </div>
 
+    <div id="holo-tooltip">
+        <img id="tooltip-img" src="" alt="Signal">
+        <div class="meta" id="tooltip-meta">SCANNING...</div>
+    </div>
+
+    <div id="container"></div>
+
     <div id="controls">
-        <button onclick="toggleAutoRotate()">AUTO ROTATE</button>
-        <button onclick="resetView()">RESET VIEW</button>
-        <button onclick="toggleWireframe()">WIREFRAME</button>
+        <button class="cyber-btn" onclick="toggleViewMode()" id="btn-view">VUE TACTIQUE [2D]</button>
+        <button class="cyber-btn" onclick="toggleAutoRotate()" id="btn-rotate">AUTO ROTATION [ON]</button>
+        <button class="cyber-btn" onclick="resetView()">RÉINITIALISER</button>
     </div>
 
     <div id="station-info">
-        <h2 id="station-name"></h2>
-        <p id="station-location"></p>
-        <p id="station-genre"></p>
-        <button onclick="playStation()">▶ STREAM</button>
-        <button onclick="closeStationInfo()">✕ CLOSE</button>
+        <h2 id="station-name">NOM DE LA STATION</h2>
+        <p id="station-location">📍 LOCALISATION</p>
+        <p id="station-genre" style="margin-top: 10px; color: #888;">🎵 GENRE</p>
+        
+        <div class="actions">
+            <button class="cyber-btn" onclick="playStation()">▶ ÉCOUTER (MIXCLOUD)</button>
+            <button class="cyber-btn" onclick="closeStationInfo()">✕ FERMER</button>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
