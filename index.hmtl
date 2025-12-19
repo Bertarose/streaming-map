@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radio Globe - Cyber Map</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #0f0;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: transparent;
+            border: none;
+            padding: 20px;
+            max-width: 400px;
+            z-index: 100;
+        }
+
+        #info-panel h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        #info-panel p {
+            font-size: 12px;
+            line-height: 1.6;
+            color: #fff;
+            margin-bottom: 15px;
+        }
+
+        #station-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: transparent;
+            border: none;
+            padding: 15px;
+            max-width: 400px;
+            display: none;
+            z-index: 100;
+        }
+
+        #station-info h2 {
+            color: #fff;
+            font-size: 18px;
+            margin-bottom: 8px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        #station-info p {
+            color: #fff;
+            font-size: 12px;
+            margin: 5px 0;
+        }
+
+        #station-info button {
+            background: transparent;
+            border: 1px solid #fff;
+            color: #fff;
+            padding: 8px 16px;
+            margin-top: 10px;
+            margin-right: 10px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: all 0.3s;
+        }
+
+        #station-info button:hover {
+            background: #fff;
+            color: #000;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+        }
+
+        #controls {
+            position: absolute;
+            top: 240px;
+            left: 20px;
+            background: transparent;
+            border: none;
+            padding: 15px;
+            z-index: 100;
+            max-width: 400px;
+        }
+
+        #controls button {
+            display: block;
+            width: 100%;
+            background: transparent;
+            border: 1px solid #fff;
+            color: #fff;
+            padding: 8px;
+            margin: 5px 0;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            transition: all 0.3s;
+        }
+
+        #controls button:hover {
+            background: #fff;
+            color: #000;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .scanline {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                transparent 50%, 
+                rgba(0, 255, 0, 0.05) 50%
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 1000;
+            animation: scanline 8s linear infinite;
+        }
+
+        @keyframes scanline {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(100%); }
+        }
+
+        .glitch {
+            animation: glitch 3s infinite;
+        }
+
+        @keyframes glitch {
+            0%, 90%, 100% { text-shadow: 0 0 10px currentColor; }
+            92% { text-shadow: 2px 0 10px currentColor, -2px 0 10px currentColor; }
+            94% { text-shadow: -2px 0 10px currentColor, 2px 0 10px currentColor; }
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #0ff;
+            text-shadow: 0 0 20px #0ff;
+            z-index: 200;
+        }
+
+        /* Mobile responsive styles */
+        @media (max-width: 768px) {
+            #info-panel {
+                max-width: 90%;
+                padding: 15px;
+                font-size: 11px;
+            }
+
+            #info-panel h1 {
+                font-size: 18px;
+                letter-spacing: 2px;
+            }
+
+            #info-panel p {
+                font-size: 10px;
+            }
+
+            #controls {
+                top: auto;
+                bottom: 20px;
+                right: 20px;
+                left: auto;
+                max-width: 200px;
+                padding: 10px;
+            }
+
+            #controls button {
+                font-size: 9px;
+                padding: 6px;
+            }
+
+            #station-info {
+                max-width: 90%;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+
+            #station-info h2 {
+                font-size: 14px;
+            }
+
+            #station-info p {
+                font-size: 10px;
+            }
+
+            #station-info button {
+                font-size: 10px;
+                padding: 6px 12px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #info-panel h1 {
+                font-size: 16px;
+            }
+
+            #controls {
+                bottom: 10px;
+                right: 10px;
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="glitch">INITIALIZING SATELLITE UPLINK...</div>
+    <div class="scanline"></div>
+    
+    <div id="container"></div>
+
+    <div id="info-panel">
+        <h1 class="glitch">RADIO GLOBE</h1>
+        <p>> UNDERGROUND TRANSMISSION MAP</p>
+        <p>> DRAG TO ROTATE</p>
+        <p>> SCROLL TO ZOOM</p>
+        <p>> CLICK MARKERS TO TUNE IN</p>
+        <p style="color: #fff; margin-top: 15px; font-weight: bold;">[STATIONS ONLINE: <span id="station-count">0</span>]</p>
+    </div>
+
+    <div id="controls">
+        <button onclick="toggleAutoRotate()">AUTO ROTATE</button>
+        <button onclick="resetView()">RESET VIEW</button>
+        <button onclick="toggleWireframe()">WIREFRAME</button>
+    </div>
+
+    <div id="station-info">
+        <h2 id="station-name"></h2>
+        <p id="station-location"></p>
+        <p id="station-genre"></p>
+        <button onclick="playStation()">▶ STREAM</button>
+        <button onclick="closeStationInfo()">✕ CLOSE</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>
