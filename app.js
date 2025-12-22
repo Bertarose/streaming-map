@@ -74,6 +74,7 @@ let isFlatView = false; // Mode 2D vs 3D
 let raycaster = new THREE.Raycaster();
 let mouse = new THREE.Vector2();
 let hoveredStation = null;
+let isInitialized = false; // Flag pour savoir si l'init est complète
 
 // Initialisation
 function init() {
@@ -118,9 +119,10 @@ function init() {
     window.addEventListener('resize', onWindowResize);
     document.getElementById('station-count').textContent = radioStations.length;
 
-    // Masquer le loading
+    // Masquer le loading et activer les contrôles
     setTimeout(() => {
         document.getElementById('loading').style.display = 'none';
+        isInitialized = true;
     }, 1000);
 
     animate();
@@ -220,6 +222,12 @@ function createStarField() {
 // --- LOGIQUE DE TRANSITION 3D <-> 2D ---
 
 function toggleViewMode() {
+    // Vérification de sécurité
+    if (!globeGroup || !globeGroup.children || !isInitialized) {
+        console.warn('Globe not ready yet');
+        return;
+    }
+    
     isFlatView = !isFlatView;
     const btn = document.getElementById('btn-view');
     
@@ -232,13 +240,11 @@ function toggleViewMode() {
         autoRotate = false;
         document.getElementById('btn-rotate').textContent = "AUTO ROTATION [OFF]";
         
-        // Reset rotation du groupe pour aligner la carte
-        // On utilise GSAP si dispo, sinon interpolation simple dans animate()
-        // Ici, on va faire une interpolation simple dans animate
-        
         // Cacher le globe sphérique
         globeGroup.children.forEach(child => {
-            if(child.userData.isGlobe) child.visible = false;
+            if(child.userData && child.userData.isGlobe) {
+                child.visible = false;
+            }
         });
 
     } else {
@@ -251,20 +257,35 @@ function toggleViewMode() {
 
         // Réafficher le globe
         globeGroup.children.forEach(child => {
-            if(child.userData.isGlobe) child.visible = true;
+            if(child.userData && child.userData.isGlobe) {
+                child.visible = true;
+            }
         });
     }
 }
 
 function toggleAutoRotate() {
+    if (!isInitialized) {
+        console.warn('Globe not ready yet');
+        return;
+    }
+    
     autoRotate = !autoRotate;
     const btn = document.getElementById('btn-rotate');
     btn.textContent = autoRotate ? "AUTO ROTATION [ON]" : "AUTO ROTATION [OFF]";
 }
 
 function resetView() {
-    isFlatView = false;
-    toggleViewMode(); // Remet en 3D si nécessaire
+    if (!isInitialized) {
+        console.warn('Globe not ready yet');
+        return;
+    }
+    
+    // Remettre en mode 3D si on est en 2D
+    if (isFlatView) {
+        toggleViewMode();
+    }
+    
     // Force reset immédiat
     globeGroup.rotation.set(0, 0, 0);
     camera.position.set(0, 0, 16);
@@ -362,8 +383,10 @@ function showStationInfo(station) {
     document.getElementById('station-genre').textContent = `🎵 ${station.genre}`;
     
     // Stocker l'URL Mixcloud dans le bouton
-    const btn = document.querySelector('#station-info button');
-    btn.onclick = function() { playStation(station.mixcloud); };
+    const btn = document.querySelector('#station-info .actions button');
+    if (btn) {
+        btn.onclick = function() { playStation(station.mixcloud); };
+    }
     
     document.getElementById('station-info').style.display = 'block';
 }
@@ -417,7 +440,9 @@ function animate() {
             globeGroup.rotation.y += (0 - globeGroup.rotation.y) * lerpSpeed;
         } else {
             // En mode 3D, le ring regarde le centre (0,0,0)
-            marker.children[0].lookAt(0,0,0); 
+            if (marker.children[0]) {
+                marker.children[0].lookAt(0,0,0); 
+            }
         }
     });
 
@@ -434,3 +459,6 @@ function animate() {
 
     renderer.render(scene, camera);
 }
+
+// Lancer l'initialisation au chargement de la page
+init();
