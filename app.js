@@ -67,162 +67,273 @@ const radioStations = [
 ];
 
 // Variables Globales
-let scene, camera, renderer, globeGroup;
+let scene, camera, renderer, globeGroup, composer;
 let markers = [];
+let connectionLines = [];
 let autoRotate = true;
-let isFlatView = false; // Mode 2D vs 3D
+let isFlatView = false;
 let raycaster = new THREE.Raycaster();
 let mouse = new THREE.Vector2();
 let hoveredStation = null;
-let isInitialized = false; // Flag pour savoir si l'init est complète
+let isInitialized = false;
+let clock = new THREE.Clock();
 
 // Initialisation
 function init() {
     // 1. Scène
     scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x000000, 15, 60);
+    scene.fog = new THREE.Fog(0x000000, 20, 80);
 
     // 2. Caméra
-    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 0, 16);
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 25);
 
-    // 3. Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // 3. Renderer avec antialiasing amélioré
+    renderer = new THREE.WebGLRenderer({ 
+        antialias: true, 
+        alpha: true,
+        powerPreference: "high-performance"
+    });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0x000000); // Fond noir pur
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x000000, 1);
     document.getElementById('container').appendChild(renderer.domElement);
 
-    // 4. Groupe Globe (pour tout faire tourner ensemble)
+    // 4. Groupe Globe
     globeGroup = new THREE.Group();
     scene.add(globeGroup);
 
-    // 5. Lumières (On garde les couleurs pour le Globe uniquement)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+    // 5. Lumières minimalistes
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
     scene.add(ambientLight);
 
-    // Lumières néon pour éclairer la structure 3D
-    const light1 = new THREE.PointLight(0x00ff00, 1, 100); // Vert
-    light1.position.set(15, 15, 15);
-    scene.add(light1);
-    
-    const light2 = new THREE.PointLight(0xff00ff, 1, 100); // Magenta
-    light2.position.set(-15, -10, 15);
-    scene.add(light2);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    keyLight.position.set(10, 10, 10);
+    scene.add(keyLight);
 
     // 6. Création des objets
-    createGlobe();
-    createStarField();
-    createMarkers(); // Création des marqueurs avec logique de position cible
+    createMinimalistGlobe();
+    createGeometricStarField();
+    createMarkers();
+    createConnectionLines();
 
     // 7. Events
     setupControls();
     window.addEventListener('resize', onWindowResize);
     document.getElementById('station-count').textContent = radioStations.length;
 
-    // Masquer le loading et activer les contrôles
+    // Animation d'entrée
+    gsap.from(camera.position, {
+        z: 50,
+        duration: 2.5,
+        ease: "power2.out"
+    });
+
     setTimeout(() => {
         document.getElementById('loading').style.display = 'none';
         isInitialized = true;
-    }, 1000);
+    }, 800);
 
     animate();
 }
 
-function createGlobe() {
-    // Le globe en fil de fer (Wireframe) - Garde les couleurs néon
-    const geometry = new THREE.SphereGeometry(6, 64, 64);
-    const material = new THREE.MeshBasicMaterial({
-        color: 0x004444, // Cyan très sombre
+function createMinimalistGlobe() {
+    // Globe principal - lignes fines et précises
+    const globeGeometry = new THREE.SphereGeometry(6, 80, 80);
+    
+    // Wireframe ultra-fin
+    const wireMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
         wireframe: true,
         transparent: true,
-        opacity: 0.15
+        opacity: 0.08
     });
     
-    const sphere = new THREE.Mesh(geometry, material);
-    sphere.userData.isGlobe = true; // Tag pour pouvoir le cacher en mode 2D
-    globeGroup.add(sphere);
+    const wireframe = new THREE.Mesh(globeGeometry, wireMaterial);
+    wireframe.userData.isGlobe = true;
+    globeGroup.add(wireframe);
 
-    // Noyau noir pour cacher les lignes de derrière
+    // Lignes de latitude/longitude custom - style japonais épuré
+    createLatLongLines();
+
+    // Core noir mat
     const coreMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-    const core = new THREE.Mesh(new THREE.SphereGeometry(5.9, 64, 64), coreMat);
+    const core = new THREE.Mesh(new THREE.SphereGeometry(5.95, 64, 64), coreMat);
     core.userData.isGlobe = true;
     globeGroup.add(core);
 }
 
+function createLatLongLines() {
+    const material = new THREE.LineBasicMaterial({ 
+        color: 0xffffff, 
+        transparent: true, 
+        opacity: 0.15,
+        linewidth: 1
+    });
+
+    // Lignes de latitude (horizontales)
+    for (let lat = -80; lat <= 80; lat += 20) {
+        const points = [];
+        for (let lng = 0; lng <= 360; lng += 5) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = lng * (Math.PI / 180);
+            const x = 6.05 * Math.sin(phi) * Math.cos(theta);
+            const y = 6.05 * Math.cos(phi);
+            const z = 6.05 * Math.sin(phi) * Math.sin(theta);
+            points.push(new THREE.Vector3(x, y, z));
+        }
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const line = new THREE.Line(geometry, material);
+        line.userData.isGlobe = true;
+        globeGroup.add(line);
+    }
+
+    // Lignes de longitude (verticales) - seulement quelques unes pour minimalisme
+    for (let lng = 0; lng < 360; lng += 30) {
+        const points = [];
+        for (let lat = -90; lat <= 90; lat += 5) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = lng * (Math.PI / 180);
+            const x = 6.05 * Math.sin(phi) * Math.cos(theta);
+            const y = 6.05 * Math.cos(phi);
+            const z = 6.05 * Math.sin(phi) * Math.sin(theta);
+            points.push(new THREE.Vector3(x, y, z));
+        }
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const line = new THREE.Line(geometry, material);
+        line.userData.isGlobe = true;
+        globeGroup.add(line);
+    }
+}
+
 function createMarkers() {
-    const loader = new THREE.TextureLoader();
-    
     radioStations.forEach((station, index) => {
-        // --- 1. Calcul Position Sphérique (Mode 3D) ---
+        // Position 3D
         const phi = (90 - station.lat) * (Math.PI / 180);
         const theta = (station.lng + 180) * (Math.PI / 180);
-        const r = 6.1; // Rayon légèrement plus grand que le globe
+        const r = 6.15;
 
         const x3d = -r * Math.sin(phi) * Math.cos(theta);
         const y3d = r * Math.cos(phi);
         const z3d = r * Math.sin(phi) * Math.sin(theta);
 
-        // --- 2. Calcul Position Plane (Mode 2D "Tactical") ---
-        // Projection simple de Mercator
+        // Position 2D
         const x2d = station.lng * 0.12; 
         const y2d = station.lat * 0.12;
         const z2d = 0;
 
-        // --- 3. Création visuelle du marqueur ---
-        const geometry = new THREE.IcosahedronGeometry(0.15, 0);
+        // Marqueur minimaliste - simple sphère
+        const geometry = new THREE.SphereGeometry(0.08, 16, 16);
         const material = new THREE.MeshBasicMaterial({ 
-            color: 0xff00ff, // Magenta Néon
-            wireframe: true 
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.9
         });
         
         const mesh = new THREE.Mesh(geometry, material);
-        
-        // On initialise la position en mode 3D
         mesh.position.set(x3d, y3d, z3d);
         
-        // On stocke les données pour l'animation et l'interaction
         mesh.userData = { 
             station: station, 
             pos3d: new THREE.Vector3(x3d, y3d, z3d),
             pos2d: new THREE.Vector3(x2d, y2d, z2d),
-            currentPos: new THREE.Vector3(x3d, y3d, z3d)
+            currentPos: new THREE.Vector3(x3d, y3d, z3d),
+            index: index
         };
 
-        // Ajout d'un cercle brillant autour
-        const ringGeo = new THREE.RingGeometry(0.2, 0.25, 32);
+        // Ring minimaliste - très fin
+        const ringGeo = new THREE.RingGeometry(0.15, 0.16, 32);
         const ringMat = new THREE.MeshBasicMaterial({ 
-            color: 0x00ffff, 
+            color: 0xffffff, 
             side: THREE.DoubleSide, 
-            transparent: true, opacity: 0.6 
+            transparent: true, 
+            opacity: 0.3
         });
         const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.lookAt(new THREE.Vector3(0,0,0)); // Regarde vers le centre
-        mesh.add(ring); // Le ring est enfant du marker
+        ring.lookAt(new THREE.Vector3(0,0,0));
+        mesh.add(ring);
+
+        // Animation d'apparition décalée
+        mesh.scale.set(0, 0, 0);
+        gsap.to(mesh.scale, {
+            x: 1, y: 1, z: 1,
+            duration: 1,
+            delay: index * 0.15,
+            ease: "elastic.out(1, 0.5)"
+        });
 
         globeGroup.add(mesh);
         markers.push(mesh);
     });
 }
 
-function createStarField() {
-    const geometry = new THREE.BufferGeometry();
-    const vertices = [];
-    for(let i=0; i<1500; i++) {
-        vertices.push(
-            (Math.random() - 0.5) * 200,
-            (Math.random() - 0.5) * 200,
-            (Math.random() - 0.5) * 200
-        );
+function createConnectionLines() {
+    // Lignes subtiles connectant les stations proches
+    const lineMaterial = new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.05,
+        linewidth: 1
+    });
+
+    for (let i = 0; i < markers.length; i++) {
+        for (let j = i + 1; j < markers.length; j++) {
+            const marker1 = markers[i];
+            const marker2 = markers[j];
+            
+            const points = [
+                marker1.userData.pos3d.clone(),
+                marker2.userData.pos3d.clone()
+            ];
+            
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const line = new THREE.Line(geometry, lineMaterial);
+            line.userData.isConnection = true;
+            globeGroup.add(line);
+            connectionLines.push({ line, marker1, marker2 });
+        }
     }
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    const material = new THREE.PointsMaterial({ color: 0x444444, size: 0.2 });
-    scene.add(new THREE.Points(geometry, material));
+}
+
+function createGeometricStarField() {
+    // Particules géométriques minimales au lieu d'étoiles
+    const particleCount = 200;
+    const geometry = new THREE.BufferGeometry();
+    const positions = [];
+    const sizes = [];
+    
+    for(let i = 0; i < particleCount; i++) {
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const radius = 30 + Math.random() * 40;
+        
+        positions.push(
+            radius * Math.sin(phi) * Math.cos(theta),
+            radius * Math.sin(phi) * Math.sin(theta),
+            radius * Math.cos(phi)
+        );
+        
+        sizes.push(Math.random() * 2 + 0.5);
+    }
+    
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+    
+    const material = new THREE.PointsMaterial({ 
+        color: 0xffffff,
+        size: 0.3,
+        transparent: true,
+        opacity: 0.4,
+        sizeAttenuation: true
+    });
+    
+    const particles = new THREE.Points(geometry, material);
+    scene.add(particles);
 }
 
 // --- LOGIQUE DE TRANSITION 3D <-> 2D ---
 
 function toggleViewMode() {
-    // Vérification de sécurité
     if (!globeGroup || !globeGroup.children || !isInitialized) {
         console.warn('Globe not ready yet');
         return;
@@ -232,99 +343,130 @@ function toggleViewMode() {
     const btn = document.getElementById('btn-view');
     
     if (isFlatView) {
-        // PASSAGE EN MODE 2D
         btn.textContent = "MODE ORBITE [3D]";
         btn.classList.add('active');
         
-        // Arrêter la rotation auto pour faciliter la lecture
         autoRotate = false;
         document.getElementById('btn-rotate').textContent = "AUTO ROTATION [OFF]";
         
-        // Cacher le globe sphérique
         globeGroup.children.forEach(child => {
             if(child.userData && child.userData.isGlobe) {
-                child.visible = false;
+                gsap.to(child.material, {
+                    opacity: 0,
+                    duration: 0.6,
+                    onComplete: () => { child.visible = false; }
+                });
             }
         });
 
+        // Animation de la caméra pour vue 2D
+        gsap.to(camera.position, {
+            z: 30,
+            duration: 1.5,
+            ease: "power2.inOut"
+        });
+
     } else {
-        // PASSAGE EN MODE 3D
         btn.textContent = "VUE TACTIQUE [2D]";
         btn.classList.remove('active');
         
         autoRotate = true;
         document.getElementById('btn-rotate').textContent = "AUTO ROTATION [ON]";
 
-        // Réafficher le globe
         globeGroup.children.forEach(child => {
             if(child.userData && child.userData.isGlobe) {
                 child.visible = true;
+                gsap.to(child.material, {
+                    opacity: child.userData.isGlobe ? 0.08 : 0.15,
+                    duration: 0.6
+                });
             }
+        });
+
+        gsap.to(camera.position, {
+            z: 25,
+            duration: 1.5,
+            ease: "power2.inOut"
         });
     }
 }
 
 function toggleAutoRotate() {
-    if (!isInitialized) {
-        console.warn('Globe not ready yet');
-        return;
-    }
-    
+    if (!isInitialized) return;
     autoRotate = !autoRotate;
     const btn = document.getElementById('btn-rotate');
     btn.textContent = autoRotate ? "AUTO ROTATION [ON]" : "AUTO ROTATION [OFF]";
 }
 
 function resetView() {
-    if (!isInitialized) {
-        console.warn('Globe not ready yet');
-        return;
-    }
+    if (!isInitialized) return;
     
-    // Remettre en mode 3D si on est en 2D
     if (isFlatView) {
         toggleViewMode();
     }
     
-    // Force reset immédiat
-    globeGroup.rotation.set(0, 0, 0);
-    camera.position.set(0, 0, 16);
+    gsap.to(globeGroup.rotation, {
+        x: 0, y: 0, z: 0,
+        duration: 1.5,
+        ease: "power2.inOut"
+    });
+    
+    gsap.to(camera.position, {
+        x: 0, y: 0, z: 25,
+        duration: 1.5,
+        ease: "power2.inOut"
+    });
+    
     document.getElementById('station-info').style.display = 'none';
 }
 
 // --- INTERACTION SOURIS & GIF ---
 
 function setupControls() {
-    // Événements de souris standards
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mousedown', onMouseDown);
     document.addEventListener('mouseup', onMouseUp);
     document.addEventListener('wheel', (e) => {
-        camera.position.z += e.deltaY * 0.01;
-        camera.position.z = Math.max(5, Math.min(50, camera.position.z));
-    });
+        e.preventDefault();
+        const delta = e.deltaY * 0.01;
+        gsap.to(camera.position, {
+            z: Math.max(10, Math.min(60, camera.position.z + delta)),
+            duration: 0.3,
+            ease: "power2.out"
+        });
+    }, { passive: false });
     
-    // Click pour ouvrir
     document.addEventListener('click', onMouseClick);
 }
 
 let isDragging = false;
 let previousMousePosition = { x: 0, y: 0 };
 
-function onMouseDown(e) { isDragging = true; previousMousePosition = { x: e.clientX, y: e.clientY }; }
-function onMouseUp() { isDragging = false; }
+function onMouseDown(e) { 
+    isDragging = true; 
+    previousMousePosition = { x: e.clientX, y: e.clientY }; 
+}
+
+function onMouseUp() { 
+    isDragging = false; 
+}
 
 function onMouseMove(e) {
-    // 1. Gestion du Dragging (Rotation)
     if (isDragging && !isFlatView) {
         const deltaX = e.clientX - previousMousePosition.x;
         const deltaY = e.clientY - previousMousePosition.y;
-        globeGroup.rotation.y += deltaX * 0.005;
-        globeGroup.rotation.x += deltaY * 0.005;
+        
+        gsap.to(globeGroup.rotation, {
+            y: globeGroup.rotation.y + deltaX * 0.005,
+            x: globeGroup.rotation.x + deltaY * 0.005,
+            duration: 0.3,
+            ease: "power2.out"
+        });
+        
         previousMousePosition = { x: e.clientX, y: e.clientY };
     }
 
-    // 2. Raycaster pour Hover (GIF)
+    // Raycaster pour Hover
     mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
@@ -333,14 +475,24 @@ function onMouseMove(e) {
     const tooltip = document.getElementById('holo-tooltip');
 
     if (intersects.length > 0) {
-        // SURVOL D'UNE STATION
         const object = intersects[0].object;
         const station = object.userData.station;
         
-        // Grossir légèrement le marqueur
-        object.scale.set(1.5, 1.5, 1.5);
+        // Animation de scale subtile
+        gsap.to(object.scale, {
+            x: 1.8, y: 1.8, z: 1.8,
+            duration: 0.3,
+            ease: "power2.out"
+        });
         
-        // Afficher le GIF
+        // Intensifier le ring
+        if (object.children[0]) {
+            gsap.to(object.children[0].material, {
+                opacity: 0.8,
+                duration: 0.3
+            });
+        }
+        
         tooltip.style.display = 'block';
         tooltip.style.left = (e.clientX + 15) + 'px';
         tooltip.style.top = (e.clientY + 15) + 'px';
@@ -349,23 +501,34 @@ function onMouseMove(e) {
         if (img.dataset.src !== station.gif) {
             img.src = station.gif;
             img.dataset.src = station.gif;
-            document.getElementById('tooltip-meta').textContent = ">> " + station.name;
+            document.getElementById('tooltip-meta').textContent = station.name;
         }
         
         document.body.style.cursor = 'pointer';
+        hoveredStation = object;
 
     } else {
-        // PAS DE SURVOL
         tooltip.style.display = 'none';
         document.body.style.cursor = 'crosshair';
         
-        // Remettre les marqueurs à taille normale
-        markers.forEach(m => m.scale.set(1, 1, 1));
+        markers.forEach(m => {
+            gsap.to(m.scale, {
+                x: 1, y: 1, z: 1,
+                duration: 0.3,
+                ease: "power2.out"
+            });
+            if (m.children[0]) {
+                gsap.to(m.children[0].material, {
+                    opacity: 0.3,
+                    duration: 0.3
+                });
+            }
+        });
+        hoveredStation = null;
     }
 }
 
 function onMouseClick(e) {
-    // Si on a cliqué sur un marqueur (déjà détecté par le raycaster dans mousemove)
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObjects(markers);
     
@@ -382,25 +545,38 @@ function showStationInfo(station) {
     document.getElementById('station-location').textContent = `📍 ${station.city}, ${station.country}`;
     document.getElementById('station-genre').textContent = `🎵 ${station.genre}`;
     
-    // Stocker l'URL Mixcloud dans le bouton
     const btn = document.querySelector('#station-info .actions button');
     if (btn) {
         btn.onclick = function() { playStation(station.mixcloud); };
     }
     
-    document.getElementById('station-info').style.display = 'block';
+    const panel = document.getElementById('station-info');
+    panel.style.display = 'block';
+    
+    // Animation d'apparition
+    gsap.from(panel, {
+        opacity: 0,
+        y: 20,
+        duration: 0.4,
+        ease: "power2.out"
+    });
 }
 
 function closeStationInfo() {
-    document.getElementById('station-info').style.display = 'none';
+    const panel = document.getElementById('station-info');
+    gsap.to(panel, {
+        opacity: 0,
+        y: 20,
+        duration: 0.3,
+        ease: "power2.in",
+        onComplete: () => {
+            panel.style.display = 'none';
+        }
+    });
 }
 
 function playStation(mixcloudUrl) {
     if(!mixcloudUrl) return;
-    
-    // Créer une fenêtre flottante pour Mixcloud
-    // Pour l'instant, ouverture dans un nouvel onglet pour éviter les soucis d'iframe complexes
-    // Idéalement, on injecterait l'iframe dans une div #player
     window.open(mixcloudUrl, '_blank');
 }
 
@@ -414,51 +590,53 @@ function onWindowResize() {
 
 function animate() {
     requestAnimationFrame(animate);
+    const delta = clock.getDelta();
+    const time = clock.getElapsedTime();
 
-    // 1. Rotation Automatique (Seulement en mode 3D et si activé)
+    // Rotation automatique lente et fluide
     if (autoRotate && !isDragging && !isFlatView) {
-        globeGroup.rotation.y += 0.002;
+        globeGroup.rotation.y += 0.001;
     }
     
-    // 2. Transition fluide des Positions (Tweening maison)
-    // Lerp = Linear Interpolation (déplace doucement A vers B)
-    const lerpSpeed = 0.05;
+    // Transition fluide des positions
+    const lerpSpeed = 0.08;
     
-    markers.forEach(marker => {
+    markers.forEach((marker, i) => {
         const target = isFlatView ? marker.userData.pos2d : marker.userData.pos3d;
         
-        // Interpolation
-        marker.position.x += (target.x - marker.position.x) * lerpSpeed;
-        marker.position.y += (target.y - marker.position.y) * lerpSpeed;
-        marker.position.z += (target.z - marker.position.z) * lerpSpeed;
+        marker.position.lerp(target, lerpSpeed);
         
-        // En mode 2D, on s'assure que les marqueurs regardent la caméra
         if (isFlatView) {
             marker.lookAt(camera.position);
-            // On annule la rotation du groupe globe en mode 2D
-            globeGroup.rotation.x += (0 - globeGroup.rotation.x) * lerpSpeed;
-            globeGroup.rotation.y += (0 - globeGroup.rotation.y) * lerpSpeed;
+            globeGroup.rotation.x += (0 - globeGroup.rotation.x) * lerpSpeed * 0.5;
+            globeGroup.rotation.y += (0 - globeGroup.rotation.y) * lerpSpeed * 0.5;
         } else {
-            // En mode 3D, le ring regarde le centre (0,0,0)
             if (marker.children[0]) {
-                marker.children[0].lookAt(0,0,0); 
+                marker.children[0].lookAt(0, 0, 0); 
             }
+        }
+
+        // Animation subtile de pulsation
+        if (marker.children[0] && marker !== hoveredStation) {
+            const pulse = 1 + Math.sin(time * 1.5 + i * 0.5) * 0.08;
+            marker.children[0].scale.set(pulse, pulse, 1);
         }
     });
 
-    // 3. Animation pulsante des marqueurs
-    const time = Date.now() * 0.001;
-    markers.forEach((marker, i) => {
-        // Faire pulser l'anneau
-        const ring = marker.children[0];
-        if(ring) {
-            const scale = 1 + Math.sin(time * 2 + i) * 0.2;
-            ring.scale.set(scale, scale, 1);
-        }
+    // Mise à jour des lignes de connexion
+    connectionLines.forEach(conn => {
+        const positions = conn.line.geometry.attributes.position.array;
+        positions[0] = conn.marker1.position.x;
+        positions[1] = conn.marker1.position.y;
+        positions[2] = conn.marker1.position.z;
+        positions[3] = conn.marker2.position.x;
+        positions[4] = conn.marker2.position.y;
+        positions[5] = conn.marker2.position.z;
+        conn.line.geometry.attributes.position.needsUpdate = true;
     });
 
     renderer.render(scene, camera);
 }
 
-// Lancer l'initialisation au chargement de la page
+// Lancer l'initialisation
 init();
